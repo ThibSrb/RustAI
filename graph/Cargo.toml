@@ -1,0 +1,11 @@
+[package]
+name = "graph"
+version = "0.1.0"
+authors = ["thibault.serabian <thibault.serabian@epita.fr>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+savefile = "0.8.1"
+savefile-derive="0.8.1"
