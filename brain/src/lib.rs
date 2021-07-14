@@ -34,11 +34,11 @@ impl Brain {
         activation_function: ActivationFunction,
     ) -> Brain {
         let mut rng = rand::thread_rng();
-        let nb_verrtex = nbin + nbout + (width * (depth - 2));
+        let nb_vertex = nbin + nbout + (width * (depth - 2));
         let mut res: Brain = Brain {
-            network: Graph::new(nb_verrtex, false, false),
-            weights: vec![0.0; nb_verrtex],
-            values: vec![0.0; nb_verrtex],
+            network: Graph::new(nb_vertex, false, false),
+            weights: vec![0.0; nb_vertex],
+            values: vec![0.0; nb_vertex],
             layersizes: vec![0; depth],
             nbin: nbin,
             nbout: nbout,
@@ -95,19 +95,26 @@ impl Brain {
         let mut res = Vec::new();
         if self.nbin == entry.len() {
             let mut traversal = vec![];
+            let mut depths = vec![];
             let mut mark = vec![false; self.network.order];
+            let mut laysiz = vec![0];
+            laysiz.append(&mut self.layersizes.clone());
 
             //let max = Brain::max_vf64(&entry);
             //let min = Brain::min_vf64(&entry);
             for (i, val) in entry.iter().enumerate() {
                 self.values[i] = *val;
                 traversal.push(i);
+                depths.push(0);
                 mark[i] = true;
             }
 
             while !traversal.is_empty() {
                 let cur = traversal[0];
+                let depth = depths[0];
+                depths.remove(0);
                 traversal.remove(0);
+
                 if cur < self.network.order - self.nbout {
                     self.values[cur] += self.weights[cur];
                     self.values[cur] = self.values[cur];
@@ -116,12 +123,15 @@ impl Brain {
                         ActivationFunction::Indentity => self.values[cur],
                         _ => Brain::sigmoide(self.values[cur]),
                     };
-
-                    for i in self.network.adjlist[cur].iter() {
+                    //println!("{:?}",self.network.adjlist[cur]);
+                    for j in laysiz[depth]..self.network.adjlist[cur].len() {
+                        //println!("adjlist[{:?}][{:?}] = {:?}",cur,j,&self.network.adjlist[cur][j]);
+                        let i = &self.network.adjlist[cur][j];
                         self.values[*i] += self.values[cur] * self.network.get_cost((cur, *i));
                         if !mark[*i] {
                             mark[*i] = true;
                             traversal.push(*i);
+                            depths.push(depth + 1);
                         }
                     }
                 } else {
