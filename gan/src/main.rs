@@ -1,6 +1,8 @@
 #![allow(dead_code, unused)]
 use brain::*;
 use rand::Rng;
+use std::thread;
+use std::time;
 
 fn alea_word(nbl: usize) -> Vec<char> {
     let mut rng = rand::thread_rng();
@@ -9,7 +11,7 @@ fn alea_word(nbl: usize) -> Vec<char> {
         's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
     ];
     let mut resstr = vec![' '; nbl];
-    for i in 0..nbl {
+    for i in 0..(nbl - rng.gen_range(0..(nbl - 2))) {
         resstr[i] = chars[rng.gen_range(0..26) as usize];
     }
     resstr
@@ -35,7 +37,7 @@ fn get_true_words(nbl: usize, nb: usize, path: &str) -> Vec<Vec<char>> {
     let mut alea;
     for _i in 0..nb {
         alea = rng.gen_range(0..size);
-        while (table[alea].len() != nbl + 1) {
+        while (table[alea].len() > nbl + 1) {
             alea = rng.gen_range(0..size);
         }
         let mut preres = table[alea].clone();
@@ -49,7 +51,7 @@ fn get_true_words(nbl: usize, nb: usize, path: &str) -> Vec<Vec<char>> {
 }
 
 fn learn_words(pool: &mut Vec<Brain>, path: &str) -> Brain {
-    let nb = 1000;
+    let nb = 1024;
     let len = pool.len();
     let reals = get_true_words(pool[0].nbin, nb / 2, path);
     let fakes = get_alea_words(pool[0].nbin, nb / 2);
@@ -68,6 +70,65 @@ fn learn_words(pool: &mut Vec<Brain>, path: &str) -> Brain {
         //println!("word : {:?}, expected result : {:?}",w.iter().collect::<String>(),expt);
         for i in 0..len {
             error_values[i] += f64::abs(expt - pool[i].compute(&letters_to_entry(&w))[0]);
+            //error_values[i] += 1.0;
+        }
+    }
+
+    //get the minimum error
+    let mut min = -1.0;
+    let mut bi = 0;
+    for (i, j) in error_values.iter().enumerate() {
+        if *j < min || min == -1.0 {
+            min = *j;
+            bi = i;
+        }
+    }
+    println!("error : {}", error_values[bi]);
+    pool[bi].clone()
+}
+
+fn multithreaded_learn_words(pool: &mut Vec<Brain>, path: &str) -> Brain {
+    let nb = 1024;
+    let len = pool.len();
+    let mut error_values: Vec<f64> = vec![0.0; len];
+    let mut threads = vec![];
+    let nbth = 8;
+    for ths in 0..nbth{
+
+        let pa = path.clone().to_string();
+        let mut errs = vec![0.0;len];
+        let mut brains = pool.clone();
+        let nth = nbth;
+
+        let th = thread::spawn(move || {
+
+            let reals = get_true_words(brains[0].nbin, nb / (2*nth), &pa);
+            let fakes = get_alea_words(brains[0].nbin, nb / (2*nth));
+            let mut w: Vec<char>;
+            let mut expt = 0.0;
+
+            for iw in 0..(nb/nth){
+                if iw % 2 == 0 {
+                    w = reals[iw / 2 as usize].clone();
+                    expt = 1.0;
+                } else {
+                    w = fakes[iw / 2 as usize].clone();
+                    expt = 0.0
+                }
+                for i in 0..len {
+                    errs[i] += f64::abs(expt - brains[i].compute(&letters_to_entry(&w))[0]);
+                    //errs[i] += 1.0;
+                }
+            }
+            errs
+        });
+        threads.push(th);
+    }
+    let e = 0;
+    for th in threads {
+        let e = th.join().unwrap();
+        for i in 0..len{
+            error_values[i] += e[i];
         }
     }
 
@@ -91,7 +152,10 @@ fn learn_against(pool: &mut Vec<Brain>, adversary: &mut Brain) -> Brain {
 fn letters_to_entry(letters: &Vec<char>) -> Vec<f64> {
     let mut res = vec![];
     for i in letters.iter() {
-        res.push((*i as u8 as f64 - 'a' as u8 as f64)/('z' as u8 as f64 - 'a' as u8 as f64));
+        match *i {
+            ' ' => res.push(1.0),
+            _ => res.push((*i as u8 as f64 - 'a' as u8 as f64) / (123 as f64 - 'a' as u8 as f64)),
+        }
     }
     res
 }
@@ -99,14 +163,14 @@ fn letters_to_entry(letters: &Vec<char>) -> Vec<f64> {
 fn main() {
     
     let compete_an = |pool:&mut Vec<Brain>| -> Brain {
-        learn_words(pool, "PrenomsFRUTF")
+        multithreaded_learn_words(pool, "PrenomsFRUTF")
+        //learn_words(pool, "PrenomsFRUTF")
     };
-    //let mut an = Brain::genetic_selection(7, 1, 3, 3, ActivationFunction::Heaviside,compete_an, 20, 50000, 0.3, 0.3); //adversarial network
-    //an.save("advNet_20gen_50000pop.bin");
-    let mut an = Brain::load("advNet_20gen_50000pop.bin");
-
-    let t1:Vec<char> = get_true_words(7, 1, "PrenomsFRUTF")[0].clone();
-    let t2:Vec<char> = get_alea_words(7, 1)[0].clone();
+    let mut an = Brain::genetic_selection(8, 1, 6, 6, ActivationFunction::Heaviside,compete_an, 10, 1000, 0.1, 0.1); //adversarial network
+    an.save("advNet5.bin");
+    //let mut an = Brain::load("advNet4.bin");
+    let t1:Vec<char> = get_true_words(8, 1, "PrenomsFRUTF")[0].clone();
+    let t2:Vec<char> = get_alea_words(8, 1)[0].clone();
     let r1 = an.compute(&letters_to_entry(&t1));
     let r2 = an.compute(&letters_to_entry(&t2));
 
@@ -127,5 +191,10 @@ fn main() {
     println!("{:?} = {:?}\n", 'b', ('b' as u8 as f64 - 'a' as u8 as f64) / ('z' as u8 as f64 - 'a' as u8 as f64));
     println!("{:?} = {:?}\n", 'z', ('z' as u8 as f64 - 'a' as u8 as f64) / ('z' as u8 as f64 - 'a' as u8 as f64));
     */
-    
+    /*
+    let b = get_alea_words(8,1)[0].clone();
+    let a = get_true_words(8, 1, "PrenomsFRUTF")[0].clone();
+    println!("{:?} = {:?}",a,letters_to_entry(&a));
+    println!("{:?} = {:?}",b,letters_to_entry(&b));
+    */
 }
