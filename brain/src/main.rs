@@ -57,9 +57,9 @@ fn main(){
 
     
     //SORTITION TESTING AI TESTS
-    //let mut sorterer = Brain::genetic_selection(8, 1, 4, 3, ActivationFunction::Heaviside, Brain::learn_sortition, 10, 10000, 0.4, 0.4);
+    //let mut sorterer = Brain::genetic_selection(8, 1, 4, 3, ActivationFunction::Heaviside, Brain::learn_sortition, 10, 10000, 0.3, 0.3);
     let mut sorterer = Brain::load("sorterer.bin");
-    //sorterer.save("sort_master.bin");
+    //sorterer.save("sorterer.bin");
 
     let mut l1 = Brain::data_scaler(&vec![1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0]);
     let mut l2 = Brain::data_scaler(&vec![3.0,2.0,1.0,4.0,6.0,8.0,7.0,5.0]);

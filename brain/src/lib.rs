@@ -13,8 +13,8 @@ pub struct Brain {
     values: Vec<f64>,
     network: Graph,
     pub layersizes: Vec<usize>,
-    nbin: usize,
-    nbout: usize,
+    pub nbin: usize,
+    pub nbout: usize,
     pub activation_function: ActivationFunction,
 }
 
@@ -180,18 +180,18 @@ impl Brain {
         }
     }
 
-    pub fn genetic_selection(
+    pub fn genetic_selection<F>(
         nbin: usize,
         nbout: usize,
         width: usize,
         depth: usize,
         activation_function: ActivationFunction,
-        compete_function: fn(&mut Vec<Brain>) -> Brain,
+        compete_function: F,
         nb_gen: usize,
         gen_size: usize,
         mutation_prob: f64,
         mutation_fac: f64,
-    ) -> Brain {
+    ) -> Brain where F:Fn(&mut Vec<Brain>)->Brain{
         let mut gen = vec![];
         for _u in 0..gen_size {
             gen.push(Brain::new_basic(
@@ -205,7 +205,14 @@ impl Brain {
         for _i in 0..nb_gen {
             let best: Brain = compete_function(&mut gen);
             gen[0] = best.clone();
-            for j in 1..gen_size {
+            let mut stop_index = gen_size;
+            if gen_size >= 100{
+                stop_index = gen_size - (gen_size/100);
+                for j in stop_index..gen_size{
+                    gen[j] = Brain::new_basic(nbin, nbout, width, depth, activation_function);
+                }
+            }
+            for j in 1..stop_index {
                 let mut wi = best.clone();
                 wi.apply_mutation(mutation_prob, mutation_fac);
                 gen[j] = wi;
