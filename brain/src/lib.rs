@@ -191,7 +191,13 @@ impl Brain {
         gen_size: usize,
         mutation_prob: f64,
         mutation_fac: f64,
-    ) -> Brain where F:Fn(&mut Vec<Brain>)->Brain{
+    ) -> Brain
+    where
+        F: Fn(&mut Vec<Brain>, usize) -> Vec<Brain>,
+    {
+        if gen_size < 1000 {
+            panic!("gen_size must be at least 100");
+        }
         let mut gen = vec![];
         for _u in 0..gen_size {
             gen.push(Brain::new_basic(
@@ -202,27 +208,42 @@ impl Brain {
                 activation_function,
             ));
         }
-        for _i in 0..nb_gen {
-            let best: Brain = compete_function(&mut gen);
-            gen[0] = best.clone();
-            let mut stop_index = gen_size;
-            if gen_size >= 100{
-                stop_index = gen_size - (gen_size/100);
-                for j in stop_index..gen_size{
-                    gen[j] = Brain::new_basic(nbin, nbout, width, depth, activation_function);
-                }
+        let r1 = (gen_size as f64 * 0.001) as usize; // range 1 from : 0% to 10%
+        let r2 = gen_size - r1; // range 2 : from 10% to 90%
+        let r3 = gen_size; // range 3 : from 90% to 100%
+                           //println!("r1 = {}",r1);
+                           // simulate all the generations
+        for _gen in 0..nb_gen {
+            //get the bests of the generation
+            let bests: Vec<Brain> = compete_function(&mut gen, r1);
+            gen = vec![];
+            //insert them in the next generation (10%)
+            for i in 0..r1 {
+                gen.push(bests[i].clone());
             }
-            for j in 1..stop_index {
-                let mut wi = best.clone();
-                wi.apply_mutation(mutation_prob, mutation_fac);
-                gen[j] = wi;
+            //clone and mutate them to fill the new generation (80%)
+            for i in r1..r2 {
+                gen.push(gen[i % r1].clone());
+                gen[i].apply_mutation(mutation_prob, mutation_fac);
             }
+            //add some completly new brains to avoid local maximums (10%)
+            for _i in r2..r3 {
+                gen.push(Brain::new_basic(
+                    nbin,
+                    nbout,
+                    width,
+                    depth,
+                    activation_function,
+                ));
+            }
+            //println!("gen_size = {}", gen.len());
         }
-        let best: Brain = compete_function(&mut gen);
-        return best;
+
+        let bests: Vec<Brain> = compete_function(&mut gen, r1);
+        return bests[0].clone();
     }
 
-    pub fn learn_xor(pool: &mut Vec<Brain>) -> Brain {
+    pub fn learn_xor(pool: &mut Vec<Brain>, nb: usize) -> Vec<Brain> {
         //let mut xorer = Brain::genetic_selection(2, 1, 4, 3, Brain::learn_xor, 500, 5000, 0.4, 0.4); simple
         //let mut xorer = Brain::genetic_selection(2, 1, 5, 5, Brain::learn_xor, 500, 5000, 0.4, 0.4); more efficient but need a greater time of learn
         let mut error_values = vec![0.0; pool.len()];
@@ -238,18 +259,27 @@ impl Brain {
                 + f64::abs(0.0 - r4[0]);
         }
         //get the minimum error
-        let mut min = -1.0;
-        let mut bi = 0;
-        for (i, j) in error_values.iter().enumerate() {
-            if *j < min || min == -1.0 {
-                min = *j;
-                bi = i;
+        let mut res = vec![];
+        for i in 0..nb {
+            let mut min = -1.0;
+            let mut bi = 0;
+            for (i, j) in error_values.iter().enumerate() {
+                if *j < min || min == -1.0 {
+                    min = *j;
+                    bi = i;
+                }
             }
+            if i == 0 {
+                println!("error : {}", error_values[bi]);
+            }
+            res.push(pool[bi].clone());
+            pool.remove(bi);
+            error_values.remove(bi);
         }
-        pool[bi].clone()
+        res
     }
 
-    pub fn learn_or(pool: &mut Vec<Brain>) -> Brain {
+    pub fn learn_or(pool: &mut Vec<Brain>, nb: usize) -> Vec<Brain> {
         //let mut xorer = Brain::genetic_selection(2, 1, 4, 3, Brain::learn_xor, 500, 5000, 0.4, 0.4); simple
         //let mut xorer = Brain::genetic_selection(2, 1, 5, 5, Brain::learn_xor, 500, 5000, 0.4, 0.4); more efficient but need a greater time of learn
         let mut error_values = vec![0.0; pool.len()];
@@ -265,18 +295,27 @@ impl Brain {
                 + f64::abs(1.0 - r4[0]);
         }
         //get the minimum error
-        let mut min = -1.0;
-        let mut bi = 0;
-        for (i, j) in error_values.iter().enumerate() {
-            if *j < min || min == -1.0 {
-                min = *j;
-                bi = i;
+        let mut res = vec![];
+        for i in 0..nb {
+            let mut min = -1.0;
+            let mut bi = 0;
+            for (i, j) in error_values.iter().enumerate() {
+                if *j < min || min == -1.0 {
+                    min = *j;
+                    bi = i;
+                }
             }
+            if i == 0 {
+                println!("error : {}", error_values[bi]);
+            }
+            res.push(pool[bi].clone());
+            pool.remove(bi);
+            error_values.remove(bi);
         }
-        pool[bi].clone()
+        res
     }
 
-    pub fn learn_sortition(pool: &mut Vec<Brain>) -> Brain {
+    pub fn learn_sortition(pool: &mut Vec<Brain>, nb: usize) -> Vec<Brain> {
         let mut error_values = vec![0.0; pool.len()];
         for _i in 0..100 {
             let expt: f64;
@@ -298,16 +337,89 @@ impl Brain {
             }
         }
         //get the minimum error
-        let mut min = -1.0;
-        let mut bi = 0;
-        for (i, j) in error_values.iter().enumerate() {
-            if *j < min || min == -1.0 {
-                min = *j;
-                bi = i;
+        let mut res = vec![];
+        for i in 0..nb {
+            let mut min = -1.0;
+            let mut bi = 0;
+            for (i, j) in error_values.iter().enumerate() {
+                if *j < min || min == -1.0 {
+                    min = *j;
+                    bi = i;
+                }
+            }
+            if i == 0 {
+                println!("error : {}", error_values[bi]);
+            }
+            res.push(pool[bi].clone());
+            pool.remove(bi);
+            error_values.remove(bi);
+        }
+        res
+    }
+
+    pub fn multithreaded_learn_sortition(pool: &mut Vec<Brain>, nb: usize) -> Vec<Brain> {
+        let mut error_values = vec![0.0; pool.len()];
+        let mut threads = vec![];
+        for _th in 0..4 {
+            //clone brains to give them to th threads
+            let mut brains = pool.clone();
+            //spawn thread
+            let th = std::thread::spawn(move || {
+                //init res vector
+                let mut res = vec![0.0; brains.len()];
+                for _i in 0..25 {
+
+                    let expt: f64;
+                    let mut rng = rand::thread_rng();
+                    let mut alea: Vec<u64> =
+                        (0..brains[0].nbin).map(|_x| rng.gen_range(0..10)).collect();
+                    if rng.gen::<f64>() > 0.5 {
+                        alea.sort();
+                    }
+                    if alea.windows(2).all(|w| w[0] <= w[1]) {
+                        expt = 1.0;
+                    } else {
+                        expt = 0.0;
+                    }
+                    //println!("Alea = {:?}, Expt = {:?}", alea, expt);
+                    for (i, brain) in brains.iter_mut().enumerate() {
+                        let l = Brain::data_scaler(&alea.iter().map(|x| *x as f64).collect());
+                        let r = brain.compute(&l);
+                        res[i] += f64::abs(expt - r[0]);
+                    }
+                }
+                res
+            });
+
+            threads.push(th);
+        }
+        let mut thres:Vec<f64>;
+        for th in threads{
+            thres = th.join().unwrap();
+            for i in 0..pool.len(){
+                error_values[i] += thres[i];
             }
         }
-        println!("error : {}", error_values[bi]);
-        pool[bi].clone()
+        
+        //get the minimum error
+        let mut res = vec![];
+        for i in 0..nb {
+            let mut min = -1.0;
+            let mut bi = 0;
+            for (i, j) in error_values.iter().enumerate() {
+                if *j < min || min == -1.0 {
+                    min = *j;
+                    bi = i;
+                }
+            }
+            if i == 0 {
+                println!("error : {}", error_values[bi]);
+            }
+            res.push(pool[bi].clone());
+            pool.remove(bi);
+            error_values.remove(bi);
+        }
+        res
     }
 
     pub fn save(&self, path: &str) {

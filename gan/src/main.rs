@@ -50,7 +50,7 @@ fn get_true_words(nbl: usize, nb: usize, path: &str) -> Vec<Vec<char>> {
     res
 }
 
-fn learn_words(pool: &mut Vec<Brain>, path: &str) -> Brain {
+fn learn_words(pool: &mut Vec<Brain>, path: &str, nb: usize) -> Vec<Brain> {
     let nb = 1024;
     let len = pool.len();
     let reals = get_true_words(pool[0].nbin, nb / 2, path);
@@ -75,39 +75,46 @@ fn learn_words(pool: &mut Vec<Brain>, path: &str) -> Brain {
     }
 
     //get the minimum error
-    let mut min = -1.0;
-    let mut bi = 0;
-    for (i, j) in error_values.iter().enumerate() {
-        if *j < min || min == -1.0 {
-            min = *j;
-            bi = i;
+    let mut res = vec![];
+    for i in 0..nb {
+        let mut min = -1.0;
+        let mut bi = 0;
+        for (i, j) in error_values.iter().enumerate() {
+            if *j < min || min == -1.0 {
+                min = *j;
+                bi = i;
+            }
         }
+        if i == 0 {
+            println!("error : {}", error_values[bi]);
+        }
+        res.push(pool[bi].clone());
+        pool.remove(bi);
+        error_values.remove(bi);
     }
-    println!("error : {}", error_values[bi]);
-    pool[bi].clone()
+    res
 }
 
-fn multithreaded_learn_words(pool: &mut Vec<Brain>, path: &str) -> Brain {
-    let nb = 1024;
+fn multithreaded_learn_words(pool: &mut Vec<Brain>, path: &str, nb_b: usize) -> Vec<Brain> {
+    let nb = 128;
     let len = pool.len();
+    //println!("len = {}", len);
     let mut error_values: Vec<f64> = vec![0.0; len];
     let mut threads = vec![];
     let nbth = 8;
-    for ths in 0..nbth{
-
+    for ths in 0..nbth {
         let pa = path.clone().to_string();
-        let mut errs = vec![0.0;len];
+        let mut errs = vec![0.0; len];
         let mut brains = pool.clone();
         let nth = nbth;
 
         let th = thread::spawn(move || {
-
-            let reals = get_true_words(brains[0].nbin, nb / (2*nth), &pa);
-            let fakes = get_alea_words(brains[0].nbin, nb / (2*nth));
+            let reals = get_true_words(brains[0].nbin, nb / (2 * nth), &pa);
+            let fakes = get_alea_words(brains[0].nbin, nb / (2 * nth));
             let mut w: Vec<char>;
             let mut expt = 0.0;
 
-            for iw in 0..(nb/nth){
+            for iw in 0..(nb / nth) {
                 if iw % 2 == 0 {
                     w = reals[iw / 2 as usize].clone();
                     expt = 1.0;
@@ -127,22 +134,29 @@ fn multithreaded_learn_words(pool: &mut Vec<Brain>, path: &str) -> Brain {
     let e = 0;
     for th in threads {
         let e = th.join().unwrap();
-        for i in 0..len{
+        for i in 0..len {
             error_values[i] += e[i];
         }
     }
-
     //get the minimum error
-    let mut min = -1.0;
-    let mut bi = 0;
-    for (i, j) in error_values.iter().enumerate() {
-        if *j < min || min == -1.0 {
-            min = *j;
-            bi = i;
+    let mut res = vec![];
+    for i in 0..nb_b {
+        let mut min = -1.0;
+        let mut bi = 0;
+        for (i, j) in error_values.iter().enumerate() {
+            if *j < min || min == -1.0 {
+                min = *j;
+                bi = i;
+            }
         }
+        if i == 0 {
+            println!("error : {}", error_values[bi]);
+        }
+        res.push(pool[bi].clone());
+        pool.remove(bi);
+        error_values.remove(bi);
     }
-    println!("error : {}", error_values[bi]);
-    pool[bi].clone()
+    res
 }
 
 fn learn_against(pool: &mut Vec<Brain>, adversary: &mut Brain) -> Brain {
@@ -154,29 +168,38 @@ fn letters_to_entry(letters: &Vec<char>) -> Vec<f64> {
     for i in letters.iter() {
         match *i {
             ' ' => res.push(1.0),
-            _ => res.push((*i as u8 as f64 - 'a' as u8 as f64) / (123 as f64 - 'a' as u8 as f64)),
+            _ => res.push((*i as u8 as f64 - 'a' as u8 as f64) / (123 as f64 - 'a' as u8 as f64)) ,
         }
     }
     res
 }
 
 fn main() {
-    
-    let compete_an = |pool:&mut Vec<Brain>| -> Brain {
-        multithreaded_learn_words(pool, "PrenomsFRUTF")
-        //learn_words(pool, "PrenomsFRUTF")
+    let compete_an = |pool: &mut Vec<Brain>, nb: usize| -> Vec<Brain> {
+        multithreaded_learn_words(pool, "PrenomsFRUTF", nb)
+        //learn_words(pool, "PrenomsFRUTF", nb)
     };
-    let mut an = Brain::genetic_selection(8, 1, 6, 6, ActivationFunction::Heaviside,compete_an, 10, 1000, 0.1, 0.1); //adversarial network
+    let mut an = Brain::genetic_selection(
+        8,
+        1,
+        4,
+        3,
+        ActivationFunction::Heaviside,
+        compete_an,
+        10,
+        100000,
+        0.005,
+        1.0,
+    ); //adversarial network
     an.save("advNet5.bin");
     //let mut an = Brain::load("advNet4.bin");
-    let t1:Vec<char> = get_true_words(8, 1, "PrenomsFRUTF")[0].clone();
-    let t2:Vec<char> = get_alea_words(8, 1)[0].clone();
+    let t1: Vec<char> = get_true_words(8, 1, "PrenomsFRUTF")[0].clone();
+    let t2: Vec<char> = get_alea_words(8, 1)[0].clone();
     let r1 = an.compute(&letters_to_entry(&t1));
     let r2 = an.compute(&letters_to_entry(&t2));
 
     println!("an({:?}) = {:?}", t1.iter().collect::<String>(), r1);
     println!("an({:?}) = {:?}", t2.iter().collect::<String>(), r2);
-    
     /*
     let compete_gn = |pool:&mut Vec<Brain>| -> Brain {
         let mut u = an.clone();

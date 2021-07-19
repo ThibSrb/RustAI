@@ -6,9 +6,9 @@ fn main(){
 
     /*
     //XOR IA TESTING
-    //let mut xorer = Brain::genetic_selection(2, 1, 3, 3,ActivationFunction::Heaviside ,Brain::learn_xor, 10000, 1000, 0.4, 0.4);
+    let mut xorer = Brain::genetic_selection(2, 1, 3, 3,ActivationFunction::Heaviside ,Brain::learn_xor, 10000, 1000, 0.01, 1.0);
     //xorer.save("xorer.bin");
-    let mut xorer = Brain::load("xorer.bin");
+    //let mut xorer = Brain::load("xorer.bin");
 
     
     let e1 = vec![0.0,0.0];
@@ -57,10 +57,10 @@ fn main(){
 
     
     //SORTITION TESTING AI TESTS
-    //let mut sorterer = Brain::genetic_selection(8, 1, 4, 3, ActivationFunction::Heaviside, Brain::learn_sortition, 10, 10000, 0.3, 0.3);
-    let mut sorterer = Brain::load("sorterer.bin");
-    //sorterer.save("sorterer.bin");
-
+    let mut sorterer = Brain::genetic_selection(8, 1, 4, 3, ActivationFunction::Heaviside, Brain::multithreaded_learn_sortition, 100, 10000, 0.005, 0.5);
+    //let mut sorterer = Brain::load("sorterer.bin");
+    //sorterer.save("sorterer2.bin");
+    
     let mut l1 = Brain::data_scaler(&vec![1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0]);
     let mut l2 = Brain::data_scaler(&vec![3.0,2.0,1.0,4.0,6.0,8.0,7.0,5.0]);
 
